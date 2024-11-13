@@ -1,15 +1,22 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 from contextlib import contextmanager
-from ..config import DatabaseConfig
-from .models import Base, init_db
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Get DATABASE_URL from environment
+DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://localhost/file_segmentation')
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 class DatabaseHandler:
     def __init__(self):
-        self.engine = create_engine(DatabaseConfig.SQLALCHEMY_DATABASE_URI)
+        self.engine = create_engine(DATABASE_URL)
         self.SessionFactory = sessionmaker(bind=self.engine)
         self.Session = scoped_session(self.SessionFactory)
-        init_db(self.engine)
     
     @contextmanager
     def session_scope(self):

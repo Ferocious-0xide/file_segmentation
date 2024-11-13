@@ -1,10 +1,10 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
-from database.database import DatabaseHandler
-from segmentation.core import SegmentationProcessor
+from src.database.database import DatabaseHandler
+from src.segmentation.core import SegmentationProcessor
 import tempfile
 import os
 
@@ -30,7 +30,6 @@ processor = SegmentationProcessor(db_handler)
 @app.get("/")
 async def root():
     """Root endpoint - serves the main page"""
-    from fastapi.responses import FileResponse
     return FileResponse("src/static/index.html")
 
 @app.post("/process")
