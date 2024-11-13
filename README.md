@@ -94,7 +94,7 @@ heroku create your-app-name
 
 2. Add PostgreSQL addon:
 ```bash
-heroku addons:create heroku-postgresql:hobby-dev
+heroku addons:create heroku-postgresql:essential-0
 ```
 
 3. Configure environment variables:
