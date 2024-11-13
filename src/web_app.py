@@ -1,12 +1,12 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+import os
+from pathlib import Path
 from src.database.database import DatabaseHandler
 from src.segmentation.core import SegmentationProcessor
-import tempfile
-import os
 
 # Initialize FastAPI app
 app = FastAPI(title="File Segmentation Service")
@@ -20,17 +20,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Get the directory containing the static files
+static_dir = Path(__file__).parent / "static"
+
 # Mount static files
-app.mount("/static", StaticFiles(directory="src/static"), name="static")
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 # Initialize database and processor
 db_handler = DatabaseHandler()
 processor = SegmentationProcessor(db_handler)
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 async def root():
     """Root endpoint - serves the main page"""
-    return FileResponse("src/static/index.html")
+    html_file = static_dir / "index.html"
+    with open(html_file, "r") as f:
+        return f.read()
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "ok"}
 
 @app.post("/process")
 async def process_file(
@@ -58,3 +68,6 @@ async def get_segments(process_id: str):
         return processor.get_segment_stats(process_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))

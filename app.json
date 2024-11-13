@@ -1,0 +1,21 @@
+{
+    "name": "file-segmentation",
+    "description": "File Segmentation Service",
+    "formation": {
+      "web": {
+        "quantity": 1,
+        "size": "standard-1x"
+      }
+    },
+    "env": {
+      "PYTHON_VERSION": "3.12.0"
+    },
+    "addons": [
+      "heroku-postgresql:hobby-dev"
+    ],
+    "buildpacks": [
+      {
+        "url": "heroku/python"
+      }
+    ]
+  }
