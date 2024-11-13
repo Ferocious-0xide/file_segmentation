@@ -11,7 +11,7 @@
       "PYTHON_VERSION": "3.12.0"
     },
     "addons": [
-      "heroku-postgresql:hobby-dev"
+      "heroku-postgresql:essential-0"
     ],
     "buildpacks": [
       {
