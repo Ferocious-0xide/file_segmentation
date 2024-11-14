@@ -3,6 +3,9 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 Base = declarative_base()
 
@@ -16,7 +19,6 @@ class FileProcess(Base):
     total_records = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     
-    # Relationship to segments
     segments = relationship("Segment", back_populates="file_process")
 
 class Segment(Base):
@@ -28,7 +30,6 @@ class Segment(Base):
     record_count = Column(Integer, default=0)
     file_process_id = Column(Integer, ForeignKey('file_processes.id'))
     
-    # Relationship to file process and records
     file_process = relationship("FileProcess", back_populates="segments")
     records = relationship("Record", back_populates="segment")
 
@@ -41,10 +42,14 @@ class Record(Base):
     sequence_number = Column(Integer)
     record_data = Column(JSON)
     
-    # Relationship to segment
     segment = relationship("Segment", back_populates="records")
 
 def init_db(engine):
-    """Initialize database tables"""
-    Base.metadata.drop_all(engine)  # Drop existing tables
-    Base.metadata.create_all(engine)  # Create new tables
+    """Initialize database tables safely"""
+    try:
+        # Create all tables if they don't exist
+        Base.metadata.create_all(engine)
+        logger.info("Database tables created successfully")
+    except Exception as e:
+        logger.error(f"Error creating database tables: {str(e)}")
+        raise
