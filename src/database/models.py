@@ -1,48 +1,50 @@
-from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey, create_engine
+from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-import datetime
+from datetime import datetime
 import uuid
 
 Base = declarative_base()
 
 class FileProcess(Base):
-    """Represents a file processing job."""
     __tablename__ = 'file_processes'
-    
+
     id = Column(Integer, primary_key=True)
-    process_uuid = Column(String, unique=True, default=lambda: str(uuid.uuid4()))
-    filename = Column(String, nullable=False)
-    total_segments = Column(Integer, nullable=False)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    process_uuid = Column(String(36), unique=True, default=lambda: str(uuid.uuid4()))
+    filename = Column(String(255))
+    total_segments = Column(Integer)
     total_records = Column(Integer, default=0)
-    segments = relationship("Segment", back_populates="file_process", cascade="all, delete-orphan")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationship to segments
+    segments = relationship("Segment", back_populates="file_process")
 
 class Segment(Base):
-    """Represents a segment of records."""
     __tablename__ = 'segments'
-    
+
     id = Column(Integer, primary_key=True)
-    segment_uuid = Column(String, unique=True, default=lambda: str(uuid.uuid4()))
-    segment_number = Column(Integer, nullable=False)
+    segment_uuid = Column(String(36), unique=True, default=lambda: str(uuid.uuid4()))
+    segment_number = Column(Integer)
     record_count = Column(Integer, default=0)
     file_process_id = Column(Integer, ForeignKey('file_processes.id'))
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    # Relationship to file process and records
     file_process = relationship("FileProcess", back_populates="segments")
-    records = relationship("Record", back_populates="segment", cascade="all, delete-orphan")
+    records = relationship("Record", back_populates="segment")
 
 class Record(Base):
-    """Represents an individual record in a segment."""
     __tablename__ = 'records'
-    
+
     id = Column(Integer, primary_key=True)
-    record_uuid = Column(String, unique=True, default=lambda: str(uuid.uuid4()))
+    record_uuid = Column(String(36), unique=True, default=lambda: str(uuid.uuid4()))
     segment_id = Column(Integer, ForeignKey('segments.id'))
-    record_data = Column(JSON, nullable=False)  # Store record data as JSON
-    sequence_number = Column(Integer, nullable=False)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    sequence_number = Column(Integer)
+    record_data = Column(JSON)
+    
+    # Relationship to segment
     segment = relationship("Segment", back_populates="records")
 
 def init_db(engine):
-    """Initialize the database schema."""
-    Base.metadata.create_all(engine)
+    """Initialize database tables"""
+    Base.metadata.drop_all(engine)  # Drop existing tables
+    Base.metadata.create_all(engine)  # Create new tables
