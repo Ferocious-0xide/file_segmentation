@@ -1,5 +1,6 @@
 import os
 import sys
+import uvicorn
 from pathlib import Path
 
 # Add the project root directory to Python path
@@ -29,9 +30,9 @@ def main():
     # Setup environment
     setup_environment()
     
-    # Import and run the main application
-    from src.main import main
-    main()
+    # Import and run the FastAPI application
+    from src.web_app import app
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
 if __name__ == '__main__':
     main()
