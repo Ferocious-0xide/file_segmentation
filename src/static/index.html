@@ -5,79 +5,160 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>File Segmentation Service</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        .hidden {
-            display: none;
-        }
-    </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
+<body class="bg-gray-100">
     <div class="container mx-auto px-4 py-8">
-        <div class="max-w-2xl mx-auto">
-            <h1 class="text-3xl font-bold mb-8 text-center text-gray-800">File Segmentation Service</h1>
-            
-            <div class="bg-white p-6 rounded-lg shadow-md">
-                <form id="uploadForm" class="space-y-6">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Upload File</label>
-                        <input type="file" 
-                               id="file" 
-                               name="file" 
-                               required
-                               class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <h1 class="text-3xl font-bold mb-8">File Segmentation Service</h1>
+        
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <form id="uploadForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">File</label>
+                    <input type="file" id="file" name="file" accept=".csv" required
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                </div>
+                
+                <!-- Column Preview Section -->
+                <div id="columnPreview" class="hidden">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Column Selection</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                        <!-- Columns will be inserted here -->
                     </div>
                     
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Number of Segments</label>
-                        <input type="number" 
-                               id="segments" 
-                               name="segments" 
-                               value="5" 
-                               min="1" 
-                               max="100"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <!-- Segmentation Rules -->
+                    <div class="mt-4">
+                        <h4 class="text-md font-medium text-gray-700 mb-2">Segmentation Method</h4>
+                        <div class="space-y-2">
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="segmentMethod" value="equal" checked
+                                       class="form-radio" onchange="toggleSegmentationOptions()">
+                                <span class="ml-2">Equal Distribution</span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="segmentMethod" value="column"
+                                       class="form-radio" onchange="toggleSegmentationOptions()">
+                                <span class="ml-2">Column-based</span>
+                            </label>
+                        </div>
                     </div>
                     
+                    <!-- Equal Distribution Options -->
+                    <div id="equalSegments" class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700">Number of Segments</label>
+                        <input type="number" id="segments" name="segments" value="5" min="1"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    </div>
+                    
+                    <!-- Column-based Options -->
+                    <div id="columnSegments" class="mt-4 hidden">
+                        <label class="block text-sm font-medium text-gray-700">Segment by Column</label>
+                        <select id="segmentColumn" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                            <!-- Column options will be inserted here -->
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="flex space-x-4">
                     <button type="submit"
-                            class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                            class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">
                         Process File
                     </button>
-                </form>
-                
-                <div id="loading" class="hidden mt-6">
-                    <div class="flex items-center justify-center">
-                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                        <span class="ml-2 text-gray-600">Processing...</span>
-                    </div>
+                    <button type="button" id="resetBtn"
+                            class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">
+                        Reset Form
+                    </button>
                 </div>
-                
-                <div id="result" class="hidden mt-6">
-                    <h2 class="text-xl font-semibold mb-4 text-gray-800">Results</h2>
-                    <pre id="resultContent" class="bg-gray-50 p-4 rounded-md overflow-auto text-sm"></pre>
-                </div>
+            </form>
+            
+            <div id="result" class="mt-8 hidden">
+                <h2 class="text-xl font-semibold mb-4">Results</h2>
+                <div id="resultContent" class="space-y-2"></div>
             </div>
         </div>
     </div>
 
     <script>
+        function displayColumns(columns) {
+            const columnPreview = document.getElementById('columnPreview');
+            const columnGrid = columnPreview.querySelector('.grid');
+            const segmentColumn = document.getElementById('segmentColumn');
+            
+            // Clear existing columns
+            columnGrid.innerHTML = '';
+            segmentColumn.innerHTML = '';
+            
+            // Add columns to grid and dropdown
+            columns.forEach(column => {
+                // Add to grid
+                columnGrid.innerHTML += `
+                    <div class="p-3 bg-gray-50 rounded-lg">
+                        <label class="inline-flex items-center">
+                            <input type="checkbox" class="form-checkbox" name="selectedColumns" value="${column}">
+                            <span class="ml-2">${column}</span>
+                        </label>
+                    </div>
+                `;
+                
+                // Add to dropdown
+                segmentColumn.innerHTML += `
+                    <option value="${column}">${column}</option>
+                `;
+            });
+            
+            // Show the preview section
+            columnPreview.classList.remove('hidden');
+        }
+
+        function toggleSegmentationOptions() {
+            const method = document.querySelector('input[name="segmentMethod"]:checked').value;
+            document.getElementById('equalSegments').classList.toggle('hidden', method === 'column');
+            document.getElementById('columnSegments').classList.toggle('hidden', method === 'equal');
+        }
+
+        // Reset form functionality
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            document.getElementById('uploadForm').reset();
+            document.getElementById('result').classList.add('hidden');
+            document.getElementById('columnPreview').classList.add('hidden');
+        });
+
+        // File upload preview
+        document.getElementById('file').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    // Get first line of CSV and split into columns
+                    const firstLine = event.target.result.split('\n')[0];
+                    const columns = firstLine.split(',').map(col => col.trim());
+                    displayColumns(columns);
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        // File upload and processing
         document.getElementById('uploadForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const formData = new FormData();
-            const fileInput = document.getElementById('file');
-            const segments = document.getElementById('segments');
+            formData.append('file', document.getElementById('file').files[0]);
             
-            if (!fileInput.files[0]) {
-                alert('Please select a file');
-                return;
+            // Get segmentation method and settings
+            const method = document.querySelector('input[name="segmentMethod"]:checked').value;
+            
+            if (method === 'equal') {
+                formData.append('num_segments', document.getElementById('segments').value);
+                formData.append('segmentation_method', 'equal');
+            } else {
+                formData.append('segment_column', document.getElementById('segmentColumn').value);
+                formData.append('segmentation_method', 'column');
             }
             
-            formData.append('file', fileInput.files[0]);
-            formData.append('num_segments', segments.value);
-            
-            // Show loading indicator
-            document.getElementById('loading').classList.remove('hidden');
-            document.getElementById('result').classList.add('hidden');
+            // Get selected columns
+            const selectedColumns = Array.from(document.querySelectorAll('input[name="selectedColumns"]:checked'))
+                .map(input => input.value);
+            formData.append('selected_columns', JSON.stringify(selectedColumns));
             
             try {
                 const response = await fetch('/process', {
@@ -85,23 +166,17 @@
                     body: formData
                 });
                 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
                 const result = await response.json();
                 
                 // Display results
                 const resultDiv = document.getElementById('result');
                 const resultContent = document.getElementById('resultContent');
-                resultContent.textContent = JSON.stringify(result, null, 2);
+                resultContent.innerHTML = JSON.stringify(result, null, 2);
                 resultDiv.classList.remove('hidden');
+                
             } catch (error) {
                 console.error('Error:', error);
-                alert('Error processing file: ' + error.message);
-            } finally {
-                // Hide loading indicator
-                document.getElementById('loading').classList.add('hidden');
+                alert('Error processing file');
             }
         });
     </script>

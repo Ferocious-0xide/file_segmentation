@@ -4,9 +4,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import os
+import json
 import tempfile
 import logging
+import pandas as pd
 from pathlib import Path
+from typing import Optional, List
 from src.database.database import DatabaseHandler
 from src.segmentation.core import SegmentationProcessor
 from src.database.models import init_db
@@ -34,7 +37,6 @@ app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 # Initialize database and processor
 try:
     db_handler = DatabaseHandler()
-    # Initialize database tables
     init_db(db_handler.engine)
     logger.info("Database tables created successfully")
     
@@ -53,27 +55,65 @@ async def read_root():
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="HTML template not found")
 
+@app.post("/preview-columns")
+async def preview_columns(file: UploadFile = File(...)):
+    """
+    Preview columns from the uploaded CSV file.
+    """
+    try:
+        # Read first chunk of file to get columns
+        chunk = await file.read(1024)  # Read first 1KB
+        # Reset file pointer for future reading
+        await file.seek(0)
+        
+        # Decode and get first line
+        first_line = chunk.decode().split('\n')[0]
+        columns = [col.strip() for col in first_line.split(',')]
+        
+        return JSONResponse(content={"columns": columns})
+    except Exception as e:
+        logger.error(f"Error previewing columns: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app.post("/process")
 async def process_file(
     file: UploadFile = File(...),
-    num_segments: int = Form(...)
+    segmentation_method: str = Form(...),
+    selected_columns: str = Form(...),
+    num_segments: Optional[int] = Form(None),
+    segment_column: Optional[str] = Form(None)
 ):
     """
-    Process uploaded file and segment it into specified number of segments.
+    Process uploaded file with enhanced segmentation options.
     
     Args:
-        file: Uploaded file
-        num_segments: Number of segments to create
-        
-    Returns:
-        JSON response with processing results
+        file: Uploaded CSV file
+        segmentation_method: Either 'equal' or 'column'
+        selected_columns: JSON string of selected column names
+        num_segments: Number of segments for equal distribution
+        segment_column: Column name for column-based segmentation
     """
     try:
-        # Validate number of segments
-        if num_segments < 1:
+        # Parse selected columns
+        selected_columns = json.loads(selected_columns)
+        
+        # Validate inputs
+        if segmentation_method not in ['equal', 'column']:
             raise HTTPException(
                 status_code=400,
-                detail="Number of segments must be at least 1"
+                detail="Invalid segmentation method"
+            )
+            
+        if segmentation_method == 'equal' and (not num_segments or num_segments < 1):
+            raise HTTPException(
+                status_code=400,
+                detail="Number of segments must be at least 1 for equal distribution"
+            )
+            
+        if segmentation_method == 'column' and not segment_column:
+            raise HTTPException(
+                status_code=400,
+                detail="Must specify segment column for column-based segmentation"
             )
             
         # Create temporary file to store upload
@@ -83,8 +123,20 @@ async def process_file(
             temp_path = temp_file.name
             
         try:
-            # Process the file
-            result = processor.process_file(temp_path, num_segments)
+            # Process the file based on segmentation method
+            if segmentation_method == 'equal':
+                result = processor.process_file(
+                    temp_path,
+                    num_segments,
+                    selected_columns=selected_columns
+                )
+            else:  # column-based
+                result = processor.process_file_by_column(
+                    temp_path,
+                    segment_column,
+                    selected_columns=selected_columns
+                )
+                
             return JSONResponse(content=result)
             
         finally:
@@ -97,15 +149,7 @@ async def process_file(
 
 @app.get("/segment/{process_uuid}")
 async def get_segment_stats(process_uuid: str):
-    """
-    Get statistics for all segments in a file process.
-    
-    Args:
-        process_uuid: UUID of the file process
-        
-    Returns:
-        JSON response with segment statistics
-    """
+    """Get statistics for all segments in a file process."""
     try:
         stats = processor.get_segment_stats(process_uuid)
         return JSONResponse(content=stats)
@@ -121,17 +165,7 @@ async def get_segment_records(
     page: int = 1,
     per_page: int = 100
 ):
-    """
-    Get records for a specific segment with pagination.
-    
-    Args:
-        segment_uuid: UUID of the segment
-        page: Page number (default: 1)
-        per_page: Records per page (default: 100)
-        
-    Returns:
-        JSON response with paginated records
-    """
+    """Get records for a specific segment with pagination."""
     try:
         records = processor.get_segment_records(segment_uuid, page, per_page)
         return JSONResponse(content=records)
