@@ -82,10 +82,67 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log('DOM fully loaded');
 
+            function formatNumber(num) {
+                return num.toLocaleString();
+            }
+
             function toggleSegmentationOptions() {
                 const method = document.querySelector('input[name="segmentMethod"]:checked').value;
                 document.getElementById('equalSegments').classList.toggle('hidden', method === 'column');
                 document.getElementById('columnSegments').classList.toggle('hidden', method === 'equal');
+            }
+
+            function displayResults(result) {
+                console.log('Displaying results:', result);
+                const resultDiv = document.getElementById('result');
+                const overviewDiv = document.getElementById('resultOverview');
+                const segmentGrid = document.getElementById('segmentGrid');
+
+                // Display overview
+                overviewDiv.innerHTML = `
+                    <div class="flex flex-col space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Process ID:</span>
+                            <span class="font-mono">${result.process_uuid}</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Total Records:</span>
+                            <span class="font-semibold">${formatNumber(result.total_records)}</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Number of Segments:</span>
+                            <span class="font-semibold">${result.segments.length}</span>
+                        </div>
+                    </div>
+                `;
+
+                // Display segments
+                segmentGrid.innerHTML = result.segments.map(segment => `
+                    <div class="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow">
+                        <div class="border-b pb-2 mb-2">
+                            <span class="text-sm font-medium text-gray-500">Segment ${segment.segment_number + 1}</span>
+                        </div>
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-600">Records:</span>
+                                <span class="font-semibold">${formatNumber(segment.record_count)}</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-600">Percentage:</span>
+                                <span class="font-semibold">
+                                    ${((segment.record_count / result.total_records) * 100).toFixed(1)}%
+                                </span>
+                            </div>
+                            <div class="mt-2 pt-2 border-t">
+                                <span class="text-xs text-gray-500 font-mono break-all">${segment.segment_uuid}</span>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+                // Make sure to unhide the result div
+                resultDiv.classList.remove('hidden');
+                console.log('Results displayed');
             }
 
             // File input change handler for column preview
@@ -129,19 +186,6 @@
                 });
             }
 
-            function formatNumber(num) {
-                return num.toLocaleString();
-            }
-
-            function displayResults(result) {
-                console.log('Displaying results:', result);
-                const resultDiv = document.getElementById('result');
-                const overviewDiv = document.getElementById('resultOverview');
-                const segmentGrid = document.getElementById('segmentGrid');
-
-                // ... (rest of the displayResults function remains the same) ...
-            }
-
             // Form submission handler
             const form = document.getElementById('uploadForm');
             if (form) {
@@ -176,7 +220,7 @@
                         
                         console.log('Response received:', response.status);
                         const result = await response.json();
-                        console.log('Result:', result);
+                        console.log('About to display results with:', result);
                         
                         displayResults(result);
                         
