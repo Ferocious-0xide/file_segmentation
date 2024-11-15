@@ -2,7 +2,8 @@ import pandas as pd
 import json
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
-from ..database.models import FileProcess, Segment, Record
+from datetime import datetime
+from ..database.models import FileProcess, Segment, Record, Donor  # Added Donor
 from ..database.database import DatabaseHandler
 
 class SegmentationProcessor:
@@ -17,14 +18,6 @@ class SegmentationProcessor:
     ) -> Dict[str, Any]:
         """
         Process a file and segment it into equal-sized segments.
-        
-        Args:
-            filepath: Path to the input file
-            num_segments: Number of segments to create
-            selected_columns: List of columns to include in processing
-            
-        Returns:
-            Dict containing processing results
         """
         with self.db_handler.session_scope() as session:
             # Create file process record
@@ -67,22 +60,12 @@ class SegmentationProcessor:
     ) -> Dict[str, Any]:
         """
         Process a file and segment it based on unique values in a column.
-        
-        Args:
-            filepath: Path to the input file
-            segment_column: Column to use for segmentation
-            selected_columns: List of columns to include in processing
-            
-        Returns:
-            Dict containing processing results
         """
         with self.db_handler.session_scope() as session:
-            # Read unique values from segment column
             df = pd.read_csv(filepath, usecols=[segment_column])
             unique_values = df[segment_column].unique()
             num_segments = len(unique_values)
             
-            # Create file process record
             file_process = FileProcess(
                 filename=filepath,
                 total_segments=num_segments
@@ -90,13 +73,9 @@ class SegmentationProcessor:
             session.add(file_process)
             session.flush()
 
-            # Create segments
             segments = self._create_segments(session, file_process.id, num_segments)
-            
-            # Create mapping of unique values to segment IDs
             value_to_segment = dict(zip(unique_values, segments))
             
-            # Process file in chunks with column-based segmentation
             total_records = self._process_file_chunks_by_column(
                 session,
                 filepath,
@@ -105,7 +84,6 @@ class SegmentationProcessor:
                 selected_columns
             )
             
-            # Update total records count
             file_process.total_records = total_records
             
             return {
@@ -143,28 +121,47 @@ class SegmentationProcessor:
         chunk_size = 1000
         total_records = 0
         
-        # Prepare column list for reading CSV
         usecols = selected_columns if selected_columns else None
         
         for chunk in pd.read_csv(filepath, chunksize=chunk_size, usecols=usecols):
-            records = []
-            
             for _, row in chunk.iterrows():
                 segment = segments[total_records % len(segments)]
+                record_data = row.to_dict()
                 
                 record = Record(
                     segment_id=segment.id,
-                    record_data=row.to_dict(),
+                    record_data=record_data,
                     sequence_number=total_records
                 )
-                records.append(record)
+                session.add(record)
+                session.flush()  # Need to flush to get record.id
+                
+                # Look for existing donor by email or other unique identifier
+                email = record_data.get('email')
+                if email:
+                    donor = session.query(Donor).filter(Donor.email == email).first()
+                    if donor:
+                        # Update existing donor
+                        donor.record_id = record.id
+                        donor.last_seen_at = datetime.utcnow()
+                    else:
+                        # Create new donor
+                        donor = Donor(
+                            record_id=record.id,
+                            email=email,
+                            first_name=record_data.get('first_name'),
+                            last_name=record_data.get('last_name')
+                        )
+                        session.add(donor)
                 
                 segment.record_count += 1
                 total_records += 1
+                
+                if total_records % 100 == 0:
+                    session.flush()
             
-            session.bulk_save_objects(records)
-            session.flush()
-            
+            session.commit()
+        
         return total_records
 
     def _process_file_chunks_by_column(
@@ -179,19 +176,15 @@ class SegmentationProcessor:
         chunk_size = 1000
         total_records = 0
         
-        # Prepare column list for reading CSV
         usecols = selected_columns if selected_columns else None
         if usecols and segment_column not in usecols:
             usecols.append(segment_column)
         
         for chunk in pd.read_csv(filepath, chunksize=chunk_size, usecols=usecols):
-            records = []
-            
             for _, row in chunk.iterrows():
                 segment_value = row[segment_column]
                 segment = value_to_segment[segment_value]
                 
-                # Remove segment column from record data if not in selected columns
                 record_data = row.to_dict()
                 if selected_columns and segment_column not in selected_columns:
                     del record_data[segment_column]
@@ -201,14 +194,31 @@ class SegmentationProcessor:
                     record_data=record_data,
                     sequence_number=total_records
                 )
-                records.append(record)
+                session.add(record)
+                session.flush()
+
+                # Added donor handling similar to _process_file_chunks
+                email = record_data.get('email')
+                if email:
+                    donor = session.query(Donor).filter(Donor.email == email).first()
+                    if donor:
+                        donor.record_id = record.id
+                        donor.last_seen_at = datetime.utcnow()
+                    else:
+                        donor = Donor(
+                            record_id=record.id,
+                            email=email,
+                            first_name=record_data.get('first_name'),
+                            last_name=record_data.get('last_name')
+                        )
+                        session.add(donor)
                 
                 segment.record_count += 1
                 total_records += 1
+                
+                if total_records % 100 == 0:
+                    session.flush()
             
-            session.bulk_save_objects(records)
-            session.flush()
-            
+            session.commit()
+        
         return total_records
-
-    # Existing get_segment_stats and get_segment_records methods remain the same...

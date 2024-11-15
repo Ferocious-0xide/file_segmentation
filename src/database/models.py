@@ -43,6 +43,25 @@ class Record(Base):
     record_data = Column(JSON)
     
     segment = relationship("Segment", back_populates="records")
+    # Add this new relationship
+    donor = relationship("Donor", back_populates="record", uselist=False)
+
+class Donor(Base):
+    __tablename__ = 'donors'
+
+    id = Column(Integer, primary_key=True)
+    donor_uuid = Column(String(36), unique=True, default=lambda: str(uuid.uuid4()))
+    external_id = Column(String(255), unique=True, nullable=True)  # If donors have an external ID
+    record_id = Column(Integer, ForeignKey('records.id'))
+    first_seen_at = Column(DateTime, default=datetime.utcnow)
+    last_seen_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Reference to the latest record data
+    record = relationship("Record", back_populates="donor")
+    
+    email = Column(String(255), unique=True, nullable=True)
+    first_name = Column(String(255))
+    last_name = Column(String(255))
 
 def init_db(engine):
     """Initialize database tables safely"""
